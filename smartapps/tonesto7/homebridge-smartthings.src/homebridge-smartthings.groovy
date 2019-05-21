@@ -925,7 +925,9 @@ def enableDirectUpdates() {
 
 mappings {
     if (isST() && (!params?.access_token || (params?.access_token && params?.access_token != state?.accessToken))) {
+        path("/allData")					{ action: [GET: "authError"] }
         path("/devices")					{ action: [GET: "authError"] }
+        path("/device/:id")                 { action: [GET: "authError"] }
         path("/config")						{ action: [GET: "authError"] }
         path("/location")					{ action: [GET: "authError"] }
         path("/:id/command/:command")		{ action: [POST: "authError"] }
@@ -934,7 +936,9 @@ mappings {
         path("/getUpdates")					{ action: [GET: "authError"] }
         path("/startDirect/:ip/:port")		{ action: [GET: "authError"] }
     } else {
+        path("/allData")					{ action: [GET: "getAllData"] }
         path("/devices")					{ action: [GET: "getAllData"] }
+        path("/device/:id")                 { action: [GET: "getDevice"] }
         path("/config")						{ action: [GET: "renderConfig"]  }
         path("/location")					{ action: [GET: "renderLocation"] }
         path("/:id/command/:command")		{ action: [POST: "deviceCommand"] }
