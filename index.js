@@ -33,12 +33,6 @@ module.exports = function(homebridge) {
 function HE_ST_Platform(log, config, api) {
     this.api = api;
     this.temperature_unit = 'F';
-
-    this.app_url = config['app_url'];
-    this.app_id = config['app_id'];
-    this.access_token = config['access_token'];
-    this.excludedCapabilities = config["excluded_capabilities"] || [];
-
     this.app_url = config['app_url'];
     this.app_id = config['app_id'];
     this.access_token = config['access_token'];
@@ -52,10 +46,18 @@ function HE_ST_Platform(log, config, api) {
     this.direct_ip = config['direct_ip'] || this.myUtils.getIPAddress();
 
     this.config = config;
-    this.api = he_st_api;
     this.log = log;
     this.deviceLookup = {};
     this.firstpoll = true;
+    this.unknownCapabilities = [];
+    this.knownCapabilities = knownCapabilities;
+    if (platformName === 'Hubitat' || platformName === 'hubitat') {
+        let newList = [];
+        this.knownCapabilities.forEach(cap => {
+            newList.push(this.myUtil.cleanSpaces(cap));
+        });
+        this.knownCapabilities = newList;
+    }
     this.attributeLookup = {};
 
     this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this));
@@ -247,7 +249,7 @@ HE_ST_Platform.prototype = {
                         updateAccessories.push(that.deviceLookup[key].accessory);
                 });
                 if (updateAccessories.length)
-                    that.hb_api.updatePlatformAccessories(updateAccessories);
+                    that.api.updatePlatformAccessories(updateAccessories);
             }
             resolve('');
         });
@@ -260,7 +262,14 @@ HE_ST_Platform.prototype = {
         he_st_api.getDevices()
             .then(function(myList) {
                 that.log('Received All Device Data '); //, util.inspect(myList, false, null, true));
-                return myList;
+                if (myList && myList.location) {
+                    that.temperature_unit = myList.location.temperature_scale;
+                    if (myList.location.hubIP) {
+                        that.local_hub_ip = myList.location.hubIP;
+                        he_st_api.updateGlobals(that.local_hub_ip, that.local_commands);
+                    }
+                }
+                return myList.deviceList;
             }).then(function(myList) {
                 return that.removeOldDevices(myList);
             }).then(function(myList) {

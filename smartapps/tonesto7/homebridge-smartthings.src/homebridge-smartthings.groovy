@@ -280,6 +280,10 @@ def renderDevices() {
     return deviceData
 }
 
+def renderDevice(deviceId) {
+
+}
+
 def getDeviceData(type, sItem) {
     // log.debug "getDeviceData($type, $sItem)"
     def curType = null
