@@ -3,6 +3,7 @@ const {
     platformName,
     knownCapabilities
 } = require("./lib/constants");
+const plugin_version = require('./package.json').version;
 const myUtils = require('./lib/MyUtils');
 const he_st_api = require('./lib/he_st_api');
 const http = require('http');
@@ -20,6 +21,7 @@ var Service,
 
 module.exports = function(homebridge) {
     console.log("Homebridge Version: " + homebridge.version);
+    console.log("Plugin Version: " + plugin_version);
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
     Accessory = homebridge.hap.Accessory;

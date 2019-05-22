@@ -1,7 +1,7 @@
 const {
     platformName
-} = require("./lib/constants");
-const myUtils = require('./lib/MyUtils');
+} = require("../lib/constants");
+const myUtils = require('../lib/MyUtils');
 // var inherits = require('util').inherits;
 var Accessory, Service, Characteristic, uuid, CommunityTypes;
 
