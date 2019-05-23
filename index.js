@@ -38,6 +38,7 @@ function HE_ST_Platform(log, config, api) {
     this.app_url = config['app_url'];
     this.app_id = config['app_id'];
     this.access_token = config['access_token'];
+    this.excludedAttributes = config["excluded_attributes"] || [];
     this.excludedCapabilities = config["excluded_capabilities"] || [];
     this.polling_seconds = config['polling_seconds'] || 3600;
     this.update_method = config['update_method'] || 'direct';
@@ -61,14 +62,15 @@ function HE_ST_Platform(log, config, api) {
         this.knownCapabilities = newList;
     }
     this.attributeLookup = {};
-
+    he_st_api.init(this.app_url, this.app_id, this.access_token, this.local_hub_ip, this.local_commands);
     this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this));
     this.asyncCallWait = 0;
 }
 
 HE_ST_Platform.prototype = {
-    addUpdateAccessory: function(deviceid, group, inAccessory = null, inDevice = null) {
-        var that = this;
+    addUpdateAccessory: function(deviceid, group, src, inAccessory = null, inDevice = null) {
+        console.log(`src: $src | deviceid: deviceid`);
+        let that = this;
         return new Promise(function(resolve, reject) {
             //that.log.error('addUpdateAccessory', deviceid, group, inAccessory, inDevice);
             var accessory;
@@ -82,9 +84,9 @@ HE_ST_Platform.prototype = {
                 if ((inDevice === null) || (inDevice === undefined)) {
                     he_st_api.getDeviceInfo(deviceid)
                         .then(function(data) {
-                            var fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
-                            data.excludedAttributes = that.excludedAttributes[deviceid] || ["None"];
-                            data.excludedCapabilities = that.excludedCapabilities[deviceid] || ["None"];
+                            let fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
+                            data.excludedAttributes = (Object.keys(that.excludedAttributes).length) ? that.excludedAttributes[deviceid] : ["None"];
+                            data.excludedCapabilities = (Object.keys(that.excludedCapabilities).length) ? that.excludedCapabilities[deviceid] : ["None"];
                             accessory = new HE_ST_Accessory(that, group, data, inAccessory);
                             // that.log(accessory);
                             if (accessory !== undefined) {
@@ -173,7 +175,7 @@ HE_ST_Platform.prototype = {
             setInterval(that.reloadData.bind(that), that.polling_seconds * 1000);
             that.log('update_method: ' + that.update_method);
             if (that.update_method === 'api') {
-                setInterval(that.doIncrementalUpdate.bind(that), that.update_seconds * 1000);
+                // setInterval(that.doIncrementalUpdate.bind(that), that.update_seconds * 1000);
             } else if (that.update_method === 'direct') {
                 // The Hub sends updates to this module using http
                 he_st_api_SetupHTTPServer(that);
@@ -233,7 +235,7 @@ HE_ST_Platform.prototype = {
                 var deviceData = null;
                 if (device.data)
                     deviceData = device.data;
-                that.addUpdateAccessory(device.id, group, null, deviceData)
+                that.addUpdateAccessory(device.id, group, 'populateDevices', null, deviceData)
                     .catch(function(error) {
                         that.log.error(error);
                     });
@@ -260,7 +262,7 @@ HE_ST_Platform.prototype = {
         var that = this;
         // that.log('config: ', JSON.stringify(this.config));
         var foundAccessories = [];
-        that.log('Refreshing All Device Data');
+        that.log('Loading All Device Data');
         he_st_api.getDevices()
             .then(function(myList) {
                 that.log('Received All Device Data '); //, util.inspect(myList, false, null, true));
@@ -394,7 +396,7 @@ HE_ST_Platform.prototype = {
         if (deviceIdentifier.length > 1) {
             that.asyncCallWait++;
 
-            that.addUpdateAccessory(deviceIdentifier[1], deviceIdentifier[0], accessory).then(function() {
+            that.addUpdateAccessory(deviceIdentifier[1], deviceIdentifier[0], 'configureAccessory', accessory).then(function() {
                 that.asyncCallWait--;
                 done = true;
             }).catch(function(error) {

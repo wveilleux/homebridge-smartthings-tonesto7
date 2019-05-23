@@ -280,8 +280,12 @@ def renderDevices() {
     return deviceData
 }
 
-def renderDevice(deviceId) {
-
+def renderDevice() {
+    log.trace "renderDevice(${params?.id})"
+    def dev = findDevice(params?.id)
+    if(dev) {
+        return getDeviceData(null, dev)
+    } else { return null }
 }
 
 def getDeviceData(type, sItem) {
@@ -942,7 +946,7 @@ mappings {
     } else {
         path("/allData")					{ action: [GET: "getAllData"] }
         path("/devices")					{ action: [GET: "getAllData"] }
-        path("/device/:id")                 { action: [GET: "getDevice"] }
+        path("/device/:id")                 { action: [GET: "renderDevice"] }
         path("/config")						{ action: [GET: "renderConfig"]  }
         path("/location")					{ action: [GET: "renderLocation"] }
         path("/:id/command/:command")		{ action: [POST: "deviceCommand"] }
