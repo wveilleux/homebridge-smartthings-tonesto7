@@ -55,112 +55,59 @@ def mainPage() {
         createAccessToken()
     }
     Boolean isInst = (state?.isInstalled == true)
-    if(isST()) {
-        return dynamicPage(name: "mainPage", title: "Homebridge Device Configuration", nextPage: (isInst ? "confirmPage" : ""), install: !isInst, uninstall:true) {
-            appInfoSect()
-            section("Define Specific Categories:") {
-                paragraph "Each category below will adjust the device attributes to make sure they are recognized as the desired device type under HomeKit", state: "complete"
-                input "lightList", "capability.switch", title: "Lights: (${lightList ? lightList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("light_on.png")
-                input "fanList", "capability.switch", title: "Fans: (${fanList ? fanList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("fan_on.png")
-                input "speakerList", "capability.switch", title: "Speakers: (${speakerList ? speakerList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("media_player.png")
-                input "shadesList", "capability.windowShade", title: "Window Shades: (${shadesList ? shadesList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("window_shade.png")
-            }
-            section("All Other Devices:") {
-                input "sensorList", "capability.sensor", title: "Sensor Devices: (${sensorList ? sensorList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("sensors.png")
-                input "switchList", "capability.switch", title: "Switch Devices: (${switchList ? switchList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("switch.png")
-                input "deviceList", "capability.refresh", title: "Other Devices: (${deviceList ? deviceList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("devices2.png")
-            }
-            section("Restrict Temp Device Creation") {
-                input "noTemp", "bool", title: "Remove Temp from All Contacts and Water Sensors?", required: false, defaultValue: false, submitOnChange: true
-                if(settings?.noTemp) {
-                    input "sensorAllowTemp", "capability.sensor", title: "Allow Temp on these Sensors", multiple: true, submitOnChange: true, required: false, image: getAppImg("temperature.png")
-                }
-            }
-            section("Remove Capabilities from Devices Creation", hideable: true, hidden: false) {
-                paragraph "This will allow you to filter out certain capabilities from creating unneeded devices under HomeKit"
-                input "removeTemp", "capability.temperatureMeasurement", title: "Remove Temp from these Sensors", multiple: true, submitOnChange: true, required: false, image: getAppImg("temperature.png")
-                input "removeSwitch", "capability.switch", title: "Remove Switch from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("switch.png")
-                input "removeContact", "capability.contactSensor", title: "Remove Contact from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("contact.png")
-                input "removeMotion", "capability.motionSensor", title: "Remove Motion from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("motion.png")
-                input "removeLevel", "capability.switchLevel", title: "Remove Level from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("speed_knob.png")
-                input "removeBattery", "capability.battery", title: "Remove Battery from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("battery.png")
-                input "removePower", "capability.powerMeter", title: "Remove Power Meter from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("power.png")
-                input "removePresence", "capability.presenceSensor", title: "Remove Presence from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("presence.png")
-                input "removeTamper", "capability.tamperAlert", title: "Remove Tamper from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("tamper.jpg")
-            }
-            section("Create Devices for Modes in HomeKit?") {
-                paragraph title: "What are these for?", "A virtual switch will be created for each mode in HomeKit.\nThe switch will be ON when that mode is active.", state: "complete", image: getAppImg("info.png")
-                def modes = location?.modes?.sort{it?.name}?.collect { [(it?.id):it?.name] }
-                input "modeList", "enum", title: "Create Devices for these Modes", required: false, multiple: true, options: modes, submitOnChange: true, image: getAppImg("mode.png")
-            }
-            section("Create Devices for Routines in HomeKit?") {
-                paragraph title: "What are these?", "A virtual device will be created for each routine in HomeKit.\nThese are very useful for use in Home Kit scenes", state: "complete", image: getAppImg("info.png")
-                def routines = location.helloHome?.getPhrases()?.sort { it?.label }?.collect { [(it?.id):it?.label] }
-                input "routineList", "enum", title: "Create Devices for these Routines", required: false, multiple: true, options: routines, submitOnChange: true, image: getAppImg("routine.png")
-            }
-            section("Smart Home Monitor Support (SHM):") {
-                input "addSecurityDevice", "bool", title: "Allow SHM Control in HomeKit?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("alarm_home.png")
-            }
-            section("Review Configuration:") {
-                href url: getAppEndpointUrl("config"), style: "embedded", required: false, title: "View the Configuration Data for Homebridge", description: "Tap, select, copy, then click \"Done\""
-                paragraph "Selected Device Count:\n${getDeviceCnt()}", image: getAppImg("info.png")
-            }
-            section("Options:") {
-                input "showLogs", "bool", title: "Show Events in Live Logs?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("debug.png")
-                input "allowLocalCmds", "bool", title: "Send HomeKit Commands Locally?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("command2.png")
-                label title: "SmartApp Label (optional)", description: "Rename this App", defaultValue: app?.name, required: false, image: getAppImg("name_tag.png")
+    return dynamicPage(name: "mainPage", title: "Homebridge Device Configuration", nextPage: (isInst ? "confirmPage" : ""), install: !isInst, uninstall:true) {
+        appInfoSect()
+        section("Define Specific Categories:") {
+            paragraph "Each category below will adjust the device attributes to make sure they are recognized as the desired device type under HomeKit", state: "complete"
+            input "lightList", "capability.switch", title: "Lights: (${lightList ? lightList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("light_on.png")
+            input "fanList", "capability.switch", title: "Fans: (${fanList ? fanList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("fan_on.png")
+            input "speakerList", "capability.switch", title: "Speakers: (${speakerList ? speakerList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("media_player.png")
+            input "shadesList", "capability.windowShade", title: "Window Shades: (${shadesList ? shadesList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("window_shade.png")
+        }
+        section("All Other Devices:") {
+            input "sensorList", "capability.sensor", title: "Sensor Devices: (${sensorList ? sensorList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("sensors.png")
+            input "switchList", "capability.switch", title: "Switch Devices: (${switchList ? switchList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("switch.png")
+            input "deviceList", "capability.refresh", title: "Other Devices: (${deviceList ? deviceList?.size() : 0} Selected)", multiple: true, submitOnChange: true, required: false, image: getAppImg("devices2.png")
+        }
+        section("Restrict Temp Device Creation") {
+            input "noTemp", "bool", title: "Remove Temp from All Contacts and Water Sensors?", required: false, defaultValue: false, submitOnChange: true
+            if(settings?.noTemp) {
+                input "sensorAllowTemp", "capability.sensor", title: "Allow Temp on these Sensors", multiple: true, submitOnChange: true, required: false, image: getAppImg("temperature.png")
             }
         }
-    } else {
-        return dynamicPage(name: "mainPage", title: "", nextPage: (isInst ? "confirmPage" : ""), install: !isInst, uninstall:true) {
-            appInfoSect()
-            section(sectionTitleStr("Define Specific Categories:")) {
-                paragraph '<h4 style="color: blue;">These Categories will add the necessary capabilities to make sure they are recognized by HomeKit as the specific device type</h4>'
-                input "lightList", "capability.switch", title: inputTitleStr("Lights: (${lightList ? lightList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-                input "fanList", "capability.switch", title: inputTitleStr("Fans: (${fanList ? fanList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-                input "speakerList", "capability.switch", title: inputTitleStr("Speakers: (${speakerList ? speakerList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-                input "shadesList", "capability.windowShade", title: inputTitleStr("Window Shades: (${shadesList ? shadesList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-            }
-
-            section(sectionTitleStr("All Other Devices:")) {
-                input "sensorList", "capability.sensor", title: inputTitleStr("Sensor Devices: (${sensorList ? sensorList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-                input "switchList", "capability.switch", title: inputTitleStr("Switch Devices: (${switchList ? switchList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-                input "deviceList", "capability.refresh", title: inputTitleStr("Other Devices: (${deviceList ? deviceList?.size() : 0} Selected)"), description: "<i>Tap to select</i>", multiple: true, submitOnChange: true, required: false
-            }
-            section(sectionTitleStr("Restrict Temp Device Creation")) {
-                input "noTemp", "bool", title: inputTitleStr("Remove Temp from Contacts and Water Sensors?"), required: false, defaultValue: false, submitOnChange: true
-                if(settings?.noTemp) {
-                    input "sensorAllowTemp", "capability.sensor", title: inputTitleStr("Allow Temp on these Sensors"), multiple: true, submitOnChange: true, required: false
-                }
-            }
-            section(sectionTitleStr("Remove Capabilities from Devices Creation"), hideable: true, hidden: (state?.isInstalled == true)) {
-                paragraph '<h4 style="color: blue;">This will allow you to filter out certain capabilities from creating unneeded devices under HomeKit</h4>'
-                input "removeTemp", "capability.temperatureMeasurement", title: inputTitleStr("Remove Temp from these Sensors"), multiple: true, submitOnChange: true, required: false
-                input "removeSwitch", "capability.switch", title: inputTitleStr("Remove Switch from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removeContact", "capability.contactSensor", title: inputTitleStr("Remove Contact from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removeMotion", "capability.motionSensor", title: inputTitleStr("Remove Motion from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removeLevel", "capability.switchLevel", title: inputTitleStr("Remove Level from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removeBattery", "capability.battery", title: inputTitleStr("Remove Battery from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removePresence", "capability.presenceSensor", title: inputTitleStr("Remove Presence from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removePower", "capability.powerMeter", title: inputTitleStr("Remove Power Meter from these Devices"), multiple: true, submitOnChange: true, required: false
-                input "removeTamper", "capability.tamperAlert", title: inputTitleStr("Remove Tamper from these Devices"), multiple: true, submitOnChange: true, required: false
-            }
-            section("</br>${sectionTitleStr("Create Mode Devices in HomeKit?")}") {
-                paragraph '<small style="color: blue !important;"><i><b>Description:</b></small><br/><small style="color: grey !important;">A virtual switch will be created for each mode in HomeKit.</br>The switch will be ON when that mode is active.</i></small>', state: "complete"
-                def modes = location?.modes?.sort{it?.name}?.collect { [(it?.id):it?.name] }
-                input "modeList", "enum", title: inputTitleStr("Create Devices for these Modes"), required: false, multiple: true, options: modes, submitOnChange: true
-            }
-            section("<br/>${sectionTitleStr("Hubitat Safety Monitor Support:")}") {
-                input "addSecurityDevice", "bool", title: inputTitleStr("Allow Hubitat Safety Monitor Control in Homekit?"), required: false, defaultValue: false, submitOnChange: true
-            }
-            section("<br/>${sectionTitleStr("Plug-In Configuration Data:")}") {
-                href url: getAppEndpointUrl("config"), style: "embedded", required: false, title: inputTitleStr("View the Configuration Data for Homebridge"), description: """</br><small style="color: #1A77C9 !important;"><i>Tap, select, copy, then click <b>Done</b></i></small>"""
-                paragraph "<h3>Selected Device Count:\n${getDeviceCnt()}</h3>"
-            }
-            section("<br/>${sectionTitleStr("Options:")}") {
-                input "showLogs", "bool", title: inputTitleStr("Show Events in Live Logs?"), required: false, defaultValue: true, submitOnChange: true
-                label title: inputTitleStr("App Label (optional)"), description: "Rename App", defaultValue: app?.name, required: false
-            }
+        section("Remove Capabilities from Devices Creation", hideable: true, hidden: false) {
+            paragraph "This will allow you to filter out certain capabilities from creating unneeded devices under HomeKit"
+            input "removeTemp", "capability.temperatureMeasurement", title: "Remove Temp from these Sensors", multiple: true, submitOnChange: true, required: false, image: getAppImg("temperature.png")
+            input "removeSwitch", "capability.switch", title: "Remove Switch from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("switch.png")
+            input "removeContact", "capability.contactSensor", title: "Remove Contact from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("contact.png")
+            input "removeMotion", "capability.motionSensor", title: "Remove Motion from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("motion.png")
+            input "removeLevel", "capability.switchLevel", title: "Remove Level from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("speed_knob.png")
+            input "removeBattery", "capability.battery", title: "Remove Battery from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("battery.png")
+            input "removePower", "capability.powerMeter", title: "Remove Power Meter from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("power.png")
+            input "removePresence", "capability.presenceSensor", title: "Remove Presence from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("presence.png")
+            input "removeTamper", "capability.tamperAlert", title: "Remove Tamper from these Devices", multiple: true, submitOnChange: true, required: false, image: getAppImg("tamper.jpg")
+        }
+        section("Create Devices for Modes in HomeKit?", hideable: !isST(), hidden: false) {
+            paragraph title: "What are these for?", "A virtual switch will be created for each mode in HomeKit.\nThe switch will be ON when that mode is active.", state: "complete", image: getAppImg("info.png")
+            def modes = location?.modes?.sort{it?.name}?.collect { [(it?.id):it?.name] }
+            input "modeList", "enum", title: "Create Devices for these Modes", required: false, multiple: true, options: modes, submitOnChange: true, image: getAppImg("mode.png")
+        }
+        section("Create Devices for Routines in HomeKit?", hideable: !isST(), hidden: false) {
+            paragraph title: "What are these?", "A virtual device will be created for each routine in HomeKit.\nThese are very useful for use in Home Kit scenes", state: "complete", image: getAppImg("info.png")
+            def routines = location.helloHome?.getPhrases()?.sort { it?.label }?.collect { [(it?.id):it?.label] }
+            input "routineList", "enum", title: "Create Devices for these Routines", required: false, multiple: true, options: routines, submitOnChange: true, image: getAppImg("routine.png")
+        }
+        section("Smart Home Monitor Support (SHM):") {
+            input "addSecurityDevice", "bool", title: "Allow SHM Control in HomeKit?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("alarm_home.png")
+        }
+        section("Review Configuration:", hideable: !isST(), hidden: false) {
+            href url: getAppEndpointUrl("config"), style: "embedded", required: false, title: "View the Configuration Data for Homebridge", description: "Tap, select, copy, then click \"Done\""
+            paragraph "Selected Device Count:\n${getDeviceCnt()}", image: getAppImg("info.png")
+        }
+        section("Options:", hideable: !isST(), hidden: false) {
+            input "showLogs", "bool", title: "Show Events in Live Logs?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("debug.png")
+            input "allowLocalCmds", "bool", title: "Send HomeKit Commands Locally?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("command2.png")
+            label title: "SmartApp Label (optional)", description: "Rename this App", defaultValue: app?.name, required: false, image: getAppImg("name_tag.png")
         }
     }
 }
@@ -280,7 +227,7 @@ def renderDevices() {
 }
 
 def renderDevice() {
-    log.trace "renderDevice(${params?.id})"
+    log.trace "renderDevice(${params.param1})"
     def dev = findDevice(params?.id)
     if(dev) {
         return getDeviceData(null, dev)

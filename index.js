@@ -49,7 +49,7 @@ function HE_ST_Platform(log, config, api) {
     this.direct_ip = config['direct_ip'] || this.myUtils.getIPAddress();
 
     this.config = config;
-    this.log = log;
+    this.log = Logger.withPrefix(this.config['name'] + ' ' + plugin_version);
     this.deviceLookup = {};
     this.firstpoll = true;
     this.unknownCapabilities = [];
@@ -69,7 +69,7 @@ function HE_ST_Platform(log, config, api) {
 
 HE_ST_Platform.prototype = {
     addUpdateAccessory: function(deviceid, group, src, inAccessory = null, inDevice = null) {
-        console.log(`src: $src | deviceid: deviceid`);
+        console.log('src:', src, ' | deviceid:', deviceid, ' | inDevice: ', inDevice);
         let that = this;
         return new Promise(function(resolve, reject) {
             //that.log.error('addUpdateAccessory', deviceid, group, inAccessory, inDevice);
@@ -109,7 +109,8 @@ HE_ST_Platform.prototype = {
                             reject(error);
                         });
                 } else {
-                    var fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
+                    let fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
+                    inDevice.excludedCapabilities = (Object.keys(that.excludedCapabilities).length) ? that.excludedCapabilities[deviceid] : ["None"];
                     accessory = new HE_ST_Accessory(that, group, inDevice, inAccessory);
                     if (accessory !== undefined) {
                         if (accessory.accessory.services.length <= 1 || accessory.deviceGroup === 'unknown') {
@@ -228,14 +229,16 @@ HE_ST_Platform.prototype = {
         var that = this;
         return new Promise(function(resolve, reject) {
             for (var i = 0; i < devices.length; i++) {
-                var device = devices[i];
-                var group = "device";
-                if (device.type)
+                let device = devices[i];
+                let group = "device";
+                if (device.type) {
                     group = device.type;
-                var deviceData = null;
-                if (device.data)
+                }
+                let deviceData = null;
+                if (device.data) {
                     deviceData = device.data;
-                that.addUpdateAccessory(device.id, group, 'populateDevices', null, deviceData)
+                }
+                that.addUpdateAccessory(device.id, group, 'populateDevices', null, device)
                     .catch(function(error) {
                         that.log.error(error);
                     });
@@ -264,8 +267,9 @@ HE_ST_Platform.prototype = {
         var foundAccessories = [];
         that.log('Loading All Device Data');
         he_st_api.getDevices()
-            .then(function(myList) {
-                that.log('Received All Device Data '); //, util.inspect(myList, false, null, true));
+            .then((myList) => {
+                // console.log(myList);
+                that.log('Received All Device Data...'); //, util.inspect(myList, false, null, true));
                 if (myList && myList.location) {
                     that.temperature_unit = myList.location.temperature_scale;
                     if (myList.location.hubIP) {
@@ -274,17 +278,23 @@ HE_ST_Platform.prototype = {
                     }
                 }
                 return myList.deviceList;
-            }).then(function(myList) {
+            })
+            .then((myList) => {
                 return that.removeOldDevices(myList);
-            }).then(function(myList) {
+            })
+            .then((myList) => {
+                console.log('populateDevices: ', myList);
                 return that.populateDevices(myList);
-            }).then(function(myList) {
+            })
+            .then((myList) => {
                 return that.updateDevices();
-            }).then(function(myList) {
+            })
+            .then((myList) => {
                 if (callback)
                     callback(foundAccessories);
                 that.firstpoll = false;
-            }).catch(function(error) {
+            })
+            .catch((error) => {
                 if (error.hasOwnProperty('statusCode')) {
                     if (error.statusCode === 404) {
                         that.log.error('Hubitat tells me that the MakerAPI instance you have configured is not available (code 404).');
