@@ -10,6 +10,8 @@ String platform() { return "SmartThings" }
 String appIconUrl() { return "https://raw.githubusercontent.com/tonesto7/homebridge-smartthings-tonesto7/master/images/hb_tonesto7@2x.png" }
 String getAppImg(imgName) { return "https://raw.githubusercontent.com/tonesto7/smartthings-tonesto7-public/master/resources/icons/$imgName" }
 Boolean isST() { return (platform() == "SmartThings") }
+Boolean isDebug() { return true }
+include 'asynchttp_v1'
 definition(
     name: "Homebridge (${platform()})",
     namespace: "tonesto7",
@@ -108,6 +110,11 @@ def mainPage() {
             input "showLogs", "bool", title: "Show Events in Live Logs?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("debug.png")
             input "allowLocalCmds", "bool", title: "Send HomeKit Commands Locally?", required: false, defaultValue: true, submitOnChange: true, image: getAppImg("command2.png")
             label title: "SmartApp Label (optional)", description: "Rename this App", defaultValue: app?.name, required: false, image: getAppImg("name_tag.png")
+        }
+        if(isDebug()) {
+            section("Debug Options:") {
+                input "altServicePath", "text", title: "Alternate Service Path", required: false, submitOnChange: true
+            }
         }
     }
 }
@@ -658,13 +665,14 @@ def registerSwitches() {
 
 def ignoreTheseAttributes() {
     return [
-        'DeviceWatch-DeviceStatus', 'checkInterval', 'devTypeVer', 'dayPowerAvg', 'apiStatus', 'yearCost', 'yearUsage','monthUsage', 'monthEst', 'weekCost', 'todayUsage',
+        'DeviceWatch-DeviceStatus', 'DeviceWatch-Enroll', 'checkInterval', 'devTypeVer', 'dayPowerAvg', 'apiStatus', 'yearCost', 'yearUsage','monthUsage', 'monthEst', 'weekCost', 'todayUsage',
         'maxCodeLength', 'maxCodes', 'readingUpdated', 'maxEnergyReading', 'monthCost', 'maxPowerReading', 'minPowerReading', 'monthCost', 'weekUsage', 'minEnergyReading',
         'codeReport', 'scanCodes', 'verticalAccuracy', 'horizontalAccuracyMetric', 'altitudeMetric', 'latitude', 'distanceMetric', 'closestPlaceDistanceMetric',
         'closestPlaceDistance', 'leavingPlace', 'currentPlace', 'codeChanged', 'codeLength', 'lockCodes', 'healthStatus', 'horizontalAccuracy', 'bearing', 'speedMetric',
         'speed', 'verticalAccuracyMetric', 'altitude', 'indicatorStatus', 'todayCost', 'longitude', 'distance', 'previousPlace','closestPlace', 'places', 'minCodeLength',
         'arrivingAtPlace', 'lastUpdatedDt', 'scheduleType', 'zoneStartDate', 'zoneElapsed', 'zoneDuration', 'watering', 'eventTime', 'eventSummary', 'endOffset', 'startOffset',
-        'closeTime', 'endMsgTime', 'endMsg', 'openTime', 'startMsgTime', 'startMsg', 'calName'
+        'closeTime', 'endMsgTime', 'endMsg', 'openTime', 'startMsgTime', 'startMsg', 'calName', 'calendar', 'deleteInfo', 'eventTitle', 'floor', 'currentState', 'locationForURL',
+        'name', 'offsetNotify'
     ]
 }
 
@@ -780,28 +788,50 @@ def changeHandler(evt) {
                         unitStr = "${send?.evtUnit}"
                         break
                 }
-                log.debug "Sending${" ${send?.evtSource}" ?: ""} Event (${send?.evtDeviceName} | ${send?.evtAttr.toUpperCase()}: ${send?.evtValue}${unitStr}) to Homebridge at (${state?.directIP}:${state?.directPort})"
             }
-            def params = [
-                method: "POST",
-                path: "/update",
-                headers: [
-                    HOST: "${state?.directIP}:${state?.directPort}",
-                    'Content-Type': 'application/json'
-                ],
-                body: [
-                    change_name: send?.evtDeviceName,
-                    change_device: send?.evtDeviceId,
-                    change_attribute: send?.evtAttr,
-                    change_value: send?.evtValue,
-                    change_date: send?.evtDate
+            if(isDebug() && settings?.altServicePath) {
+                log.debug "Sending${" ${send?.evtSource}" ?: ""} Event (${send?.evtDeviceName} | ${send?.evtAttr.toUpperCase()}: ${send?.evtValue}${unitStr}) to Homebridge at (${settings?.altServicePath})"
+                asynchttp_v1.post('changeHandlerAsyncResp', [
+                    uri: "${settings?.altServicePath}",
+                    path: "/update",
+                    contentType: "application/json",
+                    requestContentType: "application/json",
+                    body: [
+                        change_name: send?.evtDeviceName,
+                        change_device: send?.evtDeviceId,
+                        change_attribute: send?.evtAttr,
+                        change_value: send?.evtValue,
+                        change_date: send?.evtDate
+                    ]
+                ])
+            } else {
+                log.debug "Sending${" ${send?.evtSource}" ?: ""} Event (${send?.evtDeviceName} | ${send?.evtAttr.toUpperCase()}: ${send?.evtValue}${unitStr}) to Homebridge at (${state?.directIP}:${state?.directPort})"
+                def params = [
+                    method: "POST",
+                    path: "/update",
+                    headers: [
+                        HOST: "${state?.directIP}:${state?.directPort}",
+                        'Content-Type': 'application/json'
+                    ],
+                    body: [
+                        change_name: send?.evtDeviceName,
+                        change_device: send?.evtDeviceId,
+                        change_attribute: send?.evtAttr,
+                        change_value: send?.evtValue,
+                        change_date: send?.evtDate
+                    ]
                 ]
-            ]
-            def result = new physicalgraph.device.HubAction(params)
-            // def result = new hubitat.device.HubAction(params)
-            sendHubCommand(result)
+                def result = new physicalgraph.device.HubAction(params)
+                // def result = new hubitat.device.HubAction(params)
+                sendHubCommand(result)
+            }
         }
     }
+}
+
+def changeHandlerAsyncResp(response, data) {
+    log.debug "got response data: ${response.getData()}"
+    log.debug "data map passed to handler method is: $data"
 }
 
 def getModeById(String mId) {

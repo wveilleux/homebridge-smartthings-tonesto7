@@ -51,7 +51,7 @@ function dump(name, inVar) {
     }
 }
 
-function HE_ST_Accessory(platform, group, device, accessory) {
+function HE_ST_Accessory(platform, device, accessory) {
     // console.log("HE_ST_Accessory: ", platform, device);
     this.deviceid = device.deviceid;
     this.name = device.name;
@@ -62,7 +62,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
     this.unregister = false;
     let id = uuidGen(this.deviceid);
     let that = this;
-    console.log(that.name);
+    // console.log(that.name);
     //Accessory.call(this, this.name, id);
 
     if ((accessory !== undefined) && (accessory !== null)) {
@@ -388,7 +388,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
             platform.addAttributeUsage('switch', device.deviceid, thisCharacteristic);
 
             if (that.device.attributes.level !== undefined || that.device.attributes.fanSpeed !== undefined) {
-                let fanLvl = that.device.attributes.fanSpeed ? that.myUtils.fanSpeedConversion(that.device.attributes.fanSpeed, (device.command['medHighSpeed'] !== undefined)) : parseInt(that.device.attributes.level);
+                let fanLvl = that.device.attributes.fanSpeed ? fanSpeedConversion(that.device.attributes.fanSpeed, (device.command['medHighSpeed'] !== undefined)) : parseInt(that.device.attributes.level);
                 platform.log("Fan with (" + that.device.attributes.fanSpeed ? "fanSpeed" : "level" + ') | value: ' + fanLvl);
                 thisCharacteristic = that.getTheService(Service.Fanv2).getCharacteristic(Characteristic.RotationSpeed)
                     .on('get', function(callback) {
@@ -397,7 +397,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
                     .on('set', function(value, callback) {
                         if (value > 0) {
                             let cmdStr = (that.device.attributes.fanSpeed) ? 'fanspeed' : 'setLevel';
-                            let cmdVal = (that.device.attributes.fanSpeed) ? that.myUtils.fanSpeedConversion(value, (device.command['medHighSpeed'] !== undefined)) : parseInt(value);
+                            let cmdVal = (that.device.attributes.fanSpeed) ? fanSpeedConversion(value, (device.command['medHighSpeed'] !== undefined)) : parseInt(value);
                             platform.log("Fan Command (Str: " + cmdStr + ') | value: (' + cmdVal + ')');
                             platform.api.runCommand(callback, device.deviceid, cmdStr, {
                                 value1: cmdVal
@@ -409,7 +409,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
         }
         if (isMode === true) {
             that.deviceGroup = 'mode';
-            platform.log('Mode: (' + that.name + ')');
+            // platform.log('Mode: (' + that.name + ')');
             thisCharacteristic = that.getTheService(Service.Switch).getCharacteristic(Characteristic.On)
                 .on('get', function(callback) {
                     callback(null, that.device.attributes.switch === 'on');
@@ -425,7 +425,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
         }
         if (isRoutine === true) {
             that.deviceGroup = 'routine';
-            platform.log('Routine: (' + that.name + ')');
+            // platform.log('Routine: (' + that.name + ')');
             thisCharacteristic = that.getTheService(Service.Switch).getCharacteristic(Characteristic.On)
                 .on('get', function(callback) {
                     callback(null, that.device.attributes.switch === 'on');
@@ -703,7 +703,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
                     maxValue: parseFloat(100)
                 })
                 .on('get', function(callback) {
-                    callback(null, that.myUtils.tempConversion(platform.temperature_unit, that.device.attributes.temperature));
+                    callback(null, tempConversion(platform.temperature_unit, that.device.attributes.temperature));
                 });
             platform.addAttributeUsage('temperature', device.deviceid, thisCharacteristic);
             if (device.capabilities['Tamper Alert'] !== undefined || device.capabilities['TamperAlert'] !== undefined) {
@@ -873,7 +873,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
             }
             thisCharacteristic = that.getTheService(Service.Thermostat).getCharacteristic(Characteristic.CurrentTemperature)
                 .on('get', function(callback) {
-                    callback(null, that.myUtils.tempConversion(platform.temperature_unit, that.device.attributes.temperature));
+                    callback(null, tempConversion(platform.temperature_unit, that.device.attributes.temperature));
                 });
             platform.addAttributeUsage('temperature', device.deviceid, thisCharacteristic);
             thisCharacteristic = that.getTheService(Service.Thermostat).getCharacteristic(Characteristic.TargetTemperature)
@@ -899,7 +899,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
                     if (!temp) {
                         callback('Unknown');
                     } else {
-                        callback(null, that.myUtils.tempConversion(platform.temperature_unit, temp));
+                        callback(null, tempConversion(platform.temperature_unit, temp));
                     }
                 })
                 .on('set', function(value, callback) {
@@ -959,7 +959,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
             // platform.addAttributeUsage("temperature_unit", "platform", thisCharacteristic);
             thisCharacteristic = that.getTheService(Service.Thermostat).getCharacteristic(Characteristic.HeatingThresholdTemperature)
                 .on('get', function(callback) {
-                    callback(null, that.myUtils.tempConversion(platform.temperature_unit, that.device.attributes.heatingSetpoint));
+                    callback(null, tempConversion(platform.temperature_unit, that.device.attributes.heatingSetpoint));
                 })
                 .on('set', function(value, callback) {
                     // Convert the Celsius value to the appropriate unit for Smartthings
@@ -977,7 +977,7 @@ function HE_ST_Accessory(platform, group, device, accessory) {
             platform.addAttributeUsage('heatingSetpoint', device.deviceid, thisCharacteristic);
             thisCharacteristic = that.getTheService(Service.Thermostat).getCharacteristic(Characteristic.CoolingThresholdTemperature)
                 .on('get', function(callback) {
-                    callback(null, that.myUtils.tempConversion(platform.temperature_unit, that.device.attributes.coolingSetpoint));
+                    callback(null, tempConversion(platform.temperature_unit, that.device.attributes.coolingSetpoint));
                 })
                 .on('set', function(value, callback) {
                     // Convert the Celsius value to the appropriate unit for Smartthings
@@ -1000,24 +1000,90 @@ function HE_ST_Accessory(platform, group, device, accessory) {
             thisCharacteristic = that.getTheService(Service.SecuritySystem).getCharacteristic(Characteristic.SecuritySystemCurrentState)
                 .on('get', function(callback) {
                     // platform.log('alarm1: ' + that.device.attributes.alarmSystemStatus + ' | ' + convertAlarmState(that.device.attributes.alarmSystemStatus, true));
-                    callback(null, that.myUtils.convertAlarmState(that.device.attributes.alarmSystemStatus, true));
+                    callback(null, convertAlarmState(that.device.attributes.alarmSystemStatus, true, Characteristic));
                 });
             platform.addAttributeUsage('alarmSystemStatus', device.deviceid, thisCharacteristic);
 
             thisCharacteristic = that.getTheService(Service.SecuritySystem).getCharacteristic(Characteristic.SecuritySystemTargetState)
                 .on('get', function(callback) {
                     // platform.log('alarm2: ' + that.device.attributes.alarmSystemStatus + ' | ' + convertAlarmState(that.device.attributes.alarmSystemStatus, true));
-                    callback(null, that.myUtils.convertAlarmState(that.device.attributes.alarmSystemStatus.toLowerCase(), true));
+                    callback(null, convertAlarmState(that.device.attributes.alarmSystemStatus.toLowerCase(), true, Characteristic));
                 })
                 .on('set', function(value, callback) {
                     // platform.log('setAlarm: ' + value + ' | ' + convertAlarmState2(value));
-                    platform.api.runCommand(callback, device.deviceid, that.myUtils.convertAlarmState(value));
-                    that.device.attributes.alarmSystemStatus = that.myUtils.convertAlarmState(value);
+                    platform.api.runCommand(callback, device.deviceid, convertAlarmState(value));
+                    that.device.attributes.alarmSystemStatus = convertAlarmState(value);
                 });
             platform.addAttributeUsage('alarmSystemStatus', device.deviceid, thisCharacteristic);
         }
     }
     // this.loadData(device, that);
+}
+
+function tempConversion(tUnit, tempVal) {
+    if (tUnit === 'C') {
+        return (parseFloat(tempVal * 10) / 10);
+    } else {
+        return (parseFloat((tempVal - 32) / 1.8 * 10) / 10);
+    }
+}
+
+function fanSpeedConversion(speedVal, has4Spd = false) {
+    if (speedVal <= 0) {
+        return "off";
+    }
+    if (has4Spd) {
+        if (speedVal > 0 && speedVal <= 25) {
+            return "low";
+        } else if (speedVal > 25 && speedVal <= 50) {
+            return "med";
+        } else if (speedVal > 50 && speedVal <= 75) {
+            return "medhigh";
+        } else if (speedVal > 75 && speedVal <= 100) {
+            return "high";
+        }
+    } else {
+        if (speedVal > 0 && speedVal <= 33) {
+            return "low";
+        } else if (speedVal > 33 && speedVal <= 66) {
+            return "medium";
+        } else if (speedVal > 66 && speedVal <= 99) {
+            return "high";
+        }
+    }
+}
+
+function convertAlarmState(value, valInt = false, Characteristic) {
+    switch (value) {
+        case 'stay':
+        case 'armHome':
+        case 'armedHome':
+        case 'armhome':
+        case 'armedhome':
+        case 0:
+            return valInt ? Characteristic.SecuritySystemCurrentState.STAY_ARM : (platformName === 'Hubitat' ? 'armHome' : 'stay');
+        case 'away':
+        case 'armaway':
+        case 'armAway':
+        case 'armedaway':
+        case 'armedAway':
+        case 1:
+            return valInt ? Characteristic.SecuritySystemCurrentState.AWAY_ARM : (platformName === 'Hubitat' ? 'armAway' : 'away');
+        case 'night':
+        case 'armnight':
+        case 'armNight':
+        case 'armednight':
+        case 2:
+            return valInt ? Characteristic.SecuritySystemCurrentState.NIGHT_ARM : (platformName === 'Hubitat' ? 'armNight' : 'night');
+        case 'off':
+        case 'disarm':
+        case 'disarmed':
+        case 3:
+            return valInt ? Characteristic.SecuritySystemCurrentState.DISARMED : (platformName === 'Hubitat' ? 'disarm' : 'off');
+        case 'alarm_active':
+        case 4:
+            return valInt ? Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED : 'alarm_active';
+    }
 }
 
 function loadData(data, myObject) {

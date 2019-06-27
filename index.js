@@ -7,16 +7,19 @@ const plugin_version = require('./package.json').version;
 const myUtils = require('./lib/MyUtils');
 const he_st_api = require('./lib/he_st_api');
 const http = require('http');
+const express = require('express');
+const bodyParser = require('body-parser');
 const os = require('os');
 const uuidGen = require('./accessories/he_st_accessories').uuidGen;
 const uuidDecrypt = require('./accessories/he_st_accessories').uuidDecrypt;
 const Logger = require('./lib/Logger.js').Logger;
+const webApp = express();
 var Service,
     Characteristic,
     Accessory,
     uuid,
     HE_ST_Accessory,
-    User,
+    // User,
     PlatformAccessory;
 
 module.exports = function(homebridge) {
@@ -25,7 +28,7 @@ module.exports = function(homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
     Accessory = homebridge.hap.Accessory;
-    User = homebridge.user;
+    // User = homebridge.user;
     uuid = homebridge.hap.uuid;
     PlatformAccessory = homebridge.platformAccessory;
     HE_ST_Accessory = require('./accessories/he_st_accessories')(Accessory, Service, Characteristic, PlatformAccessory, uuid);
@@ -68,11 +71,53 @@ function HE_ST_Platform(log, config, api) {
 }
 
 HE_ST_Platform.prototype = {
-    addUpdateAccessory: function(deviceid, group, src, inAccessory = null, inDevice = null) {
-        console.log('src:', src, ' | deviceid:', deviceid, ' | inDevice: ', inDevice);
+    didFinishLaunching: function() {
+        var that = this;
+        if (that.asyncCallWait !== 0) {
+            that.log("Configuration of cached accessories not done, wait for a bit...", that.asyncCallWait);
+            setTimeout(that.didFinishLaunching.bind(that), 1000);
+            return;
+        }
+        this.log('Fetching ' + platformName + ' devices. This can take a while depending on the number of devices are configured!');
+        var that = this;
+        var starttime = new Date();
+        this.reloadData(function(foundAccessories) {
+            var timeElapsedinSeconds = Math.round((new Date() - starttime) / 1000);
+            if (timeElapsedinSeconds >= that.polling_seconds) {
+                that.log(`It took ${timeElapsedinSeconds} seconds to get all data | polling_seconds is set to ${that.polling_seconds}`);
+                that.log(' Changing polling_seconds to ' + (timeElapsedinSeconds * 2) + ' seconds');
+                that.polling_seconds = timeElapsedinSeconds * 2;
+            } else if (that.polling_seconds < 30) {
+                that.log('polling_seconds really shouldn\'t be smaller than 30 seconds. Setting it to 30 seconds');
+                that.polling_seconds = 30;
+            }
+            setInterval(that.reloadData.bind(that), that.polling_seconds * 1000);
+            // that.log('update_method: ' + that.update_method);
+            // if (that.update_method === 'api') {
+            //     // setInterval(that.doIncrementalUpdate.bind(that), that.update_seconds * 1000);
+            // } else if (that.update_method === 'direct') {
+            //     // The Hub sends updates to this module using http
+            // WebServerInit(that)
+            //     .catch((err) => that.log('WebServerInit Error: ', err))
+            //     .then((resp) => {
+            //         he_st_api.startDirect(null, that.direct_ip, that.direct_port);
+            //     });
+            // }
+
+            WebServerInit(that)
+                .catch((err) => that.log('WebServerInit Error: ', err))
+                .then((resp) => {
+                    if (resp === 'OK')
+                        he_st_api.startDirect(null, that.direct_ip, that.direct_port);
+                });
+        });
+    },
+
+    addUpdateAccessory: function(deviceid, src, inAccessory = null, inDevice = null) {
+        // console.log('src:', src, ' | deviceid:', deviceid, ' | inDevice: ', inDevice);
         let that = this;
         return new Promise(function(resolve, reject) {
-            //that.log.error('addUpdateAccessory', deviceid, group, inAccessory, inDevice);
+            //that.log.error('addUpdateAccessory', deviceid, inAccessory, inDevice);
             var accessory;
             if (that.deviceLookup && that.deviceLookup[uuidGen(deviceid)]) {
                 if (that.deviceLookup[uuidGen(deviceid)] instanceof HE_ST_Accessory) {
@@ -87,7 +132,7 @@ HE_ST_Platform.prototype = {
                             let fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
                             data.excludedAttributes = (Object.keys(that.excludedAttributes).length) ? that.excludedAttributes[deviceid] : ["None"];
                             data.excludedCapabilities = (Object.keys(that.excludedCapabilities).length) ? that.excludedCapabilities[deviceid] : ["None"];
-                            accessory = new HE_ST_Accessory(that, group, data, inAccessory);
+                            accessory = new HE_ST_Accessory(that, data, inAccessory);
                             // that.log(accessory);
                             if (accessory !== undefined) {
                                 if (accessory.accessory.services.length <= 1 || accessory.deviceGroup === 'unknown') {
@@ -96,7 +141,7 @@ HE_ST_Platform.prototype = {
                                     }
                                     resolve(accessory);
                                 } else {
-                                    that.log.good("Device Added" + (fromCache ? ' (Cache)' : '') + " - Name " + accessory.name + ", ID " + accessory.deviceid); //+", JSON: "+ JSON.stringify(device));
+                                    that.log.good(`Device Added${(fromCache ? ' (Cache)' : '')} - Name: ${accessory.name}, ID: ${accessory.deviceid}`); //+", JSON: "+ JSON.stringify(device));
                                     that.deviceLookup[uuidGen(accessory.deviceid)] = accessory;
                                     if (inAccessory === null)
                                         that.api.registerPlatformAccessories(pluginName, platformName, [accessory.accessory]);
@@ -111,14 +156,14 @@ HE_ST_Platform.prototype = {
                 } else {
                     let fromCache = ((inAccessory !== undefined) && (inAccessory !== null));
                     inDevice.excludedCapabilities = (Object.keys(that.excludedCapabilities).length) ? that.excludedCapabilities[deviceid] : ["None"];
-                    accessory = new HE_ST_Accessory(that, group, inDevice, inAccessory);
+                    accessory = new HE_ST_Accessory(that, inDevice, inAccessory);
                     if (accessory !== undefined) {
                         if (accessory.accessory.services.length <= 1 || accessory.deviceGroup === 'unknown') {
                             if (that.firstpoll) {
                                 that.log.warn('Device Skipped - Name ' + accessory.name + ', ID ' + accessory.deviceid + ', JSON: ' + JSON.stringify(inDevice));
                             }
                         } else {
-                            that.log.good("Device Added" + (fromCache ? ' (Cache)' : '') + " - Name " + accessory.name + ", ID " + accessory.deviceid); //+", JSON: "+ JSON.stringify(device));
+                            that.log.good(`Device Added${(fromCache ? ' (Cache)' : '')} - Name: ${accessory.name}, ID: ${accessory.deviceid}`); //+", JSON: "+ JSON.stringify(device));
                             that.deviceLookup[uuidGen(accessory.deviceid)] = accessory;
                             if (inAccessory === null)
                                 that.api.registerPlatformAccessories(pluginName, platformName, [accessory.accessory]);
@@ -130,60 +175,7 @@ HE_ST_Platform.prototype = {
             }
         });
     },
-    removeOldDevices: function(devices) {
-        var that = this;
-        return new Promise(function(resolve, reject) {
-            var accessories = [];
-            Object.keys(that.deviceLookup).forEach(function(key) {
-                if (!(that.deviceLookup[key] instanceof HE_ST_Accessory))
-                    that.removeAccessory(that.deviceLookup[key]).catch(function(error) {});
-            });
-            Object.keys(that.deviceLookup).forEach(function(key) {
-                if (that.deviceLookup[key].deviceGroup === 'reboot')
-                    return;
-                var unregister = true;
-                for (var i = 0; i < devices.length; i++) {
-                    if (that.deviceLookup[key].accessory.UUID === uuidGen(devices[i].id))
-                        unregister = false;
-                }
-                if (unregister)
-                    that.removeAccessory(that.deviceLookup[key]).catch(function(error) {});
-            });
-            resolve(devices);
-        });
-    },
 
-    didFinishLaunching: function() {
-        var that = this;
-        if (that.asyncCallWait !== 0) {
-            that.log("Configuration of cached accessories not done, wait for a bit...", that.asyncCallWait);
-            setTimeout(that.didFinishLaunching.bind(that), 1000);
-            return;
-        }
-        this.log('Fetching ' + platformName + ' devices. This can take a while depending on the number of devices are configured!');
-        var that = this;
-        var starttime = new Date();
-        this.reloadData(function(foundAccessories) {
-            var timeElapsedinSeconds = Math.round((new Date() - starttime) / 1000);
-            if (timeElapsedinSeconds >= that.polling_seconds) {
-                that.log('It took ' + timeElapsedinSeconds + ' seconds to get all data and polling_seconds is set to ' + that.polling_seconds);
-                that.log(' Changing polling_seconds to ' + (timeElapsedinSeconds * 2) + ' seconds');
-                that.polling_seconds = timeElapsedinSeconds * 2;
-            } else if (that.polling_seconds < 30) {
-                that.log('polling_seconds really shouldn\'t be smaller than 30 seconds. Setting it to 30 seconds');
-                that.polling_seconds = 30;
-            }
-            setInterval(that.reloadData.bind(that), that.polling_seconds * 1000);
-            that.log('update_method: ' + that.update_method);
-            if (that.update_method === 'api') {
-                // setInterval(that.doIncrementalUpdate.bind(that), that.update_seconds * 1000);
-            } else if (that.update_method === 'direct') {
-                // The Hub sends updates to this module using http
-                he_st_api_SetupHTTPServer(that);
-                he_st_api.startDirect(null, that.direct_ip, that.direct_port);
-            }
-        });
-    },
     removeAccessory: function(accessory) {
         var that = this;
         return new Promise(function(resolve, reject) {
@@ -203,42 +195,47 @@ HE_ST_Platform.prototype = {
             resolve('');
         });
     },
+
     removeOldDevices: function(devices) {
         var that = this;
         return new Promise(function(resolve, reject) {
             var accessories = [];
             Object.keys(that.deviceLookup).forEach(function(key) {
-                if (!(that.deviceLookup[key] instanceof HE_ST_Accessory))
+                if (!(that.deviceLookup[key] instanceof HE_ST_Accessory)) {
                     that.removeAccessory(that.deviceLookup[key]).catch(function(error) {});
+                }
             });
             Object.keys(that.deviceLookup).forEach(function(key) {
                 if (that.deviceLookup[key].deviceGroup === 'reboot')
                     return;
                 var unregister = true;
                 for (var i = 0; i < devices.length; i++) {
-                    if (that.deviceLookup[key].accessory.UUID === uuidGen(devices[i].id))
+                    if (that.deviceLookup[key].accessory.UUID === uuidGen(devices[i].id)) {
                         unregister = false;
+                    }
                 }
-                if (unregister)
+                if (unregister) {
                     that.removeAccessory(that.deviceLookup[key]).catch(function(error) {});
+                }
             });
             resolve(devices);
         });
     },
+
     populateDevices: function(devices) {
         var that = this;
         return new Promise(function(resolve, reject) {
             for (var i = 0; i < devices.length; i++) {
                 let device = devices[i];
-                let group = "device";
-                if (device.type) {
-                    group = device.type;
-                }
-                let deviceData = null;
-                if (device.data) {
-                    deviceData = device.data;
-                }
-                that.addUpdateAccessory(device.id, group, 'populateDevices', null, device)
+                // let group = "device";
+                // if (device.type) {
+                //     group = device.type;
+                // }
+                // let deviceData = null;
+                // if (device.data) {
+                //     deviceData = device.data;
+                // }
+                that.addUpdateAccessory(device.id, 'populateDevices', null, device)
                     .catch(function(error) {
                         that.log.error(error);
                     });
@@ -246,6 +243,7 @@ HE_ST_Platform.prototype = {
             resolve(devices);
         });
     },
+
     updateDevices: function() {
         var that = this;
         return new Promise(function(resolve, reject) {
@@ -261,6 +259,7 @@ HE_ST_Platform.prototype = {
             resolve('');
         });
     },
+
     reloadData: function(callback) {
         var that = this;
         // that.log('config: ', JSON.stringify(this.config));
@@ -283,15 +282,16 @@ HE_ST_Platform.prototype = {
                 return that.removeOldDevices(myList);
             })
             .then((myList) => {
-                console.log('populateDevices: ', myList);
+                console.log(`populateDevices: (${Object.keys(myList).length} devices)`);
                 return that.populateDevices(myList);
             })
             .then((myList) => {
                 return that.updateDevices();
             })
             .then((myList) => {
-                if (callback)
+                if (callback) {
                     callback(foundAccessories);
+                }
                 that.firstpoll = false;
             })
             .catch((error) => {
@@ -310,6 +310,95 @@ HE_ST_Platform.prototype = {
                 }
                 that.log.error('I am stopping my reload here and hope eveything fixes themselves (e.g. a firmware update of HE is rebooting the hub');
             });
+    },
+
+    configureAccessory: function(accessory) {
+        var done = false;
+
+        if (this.disabled === true)
+            return;
+        var that = this;
+        var deviceIdentifier = accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.SerialNumber);
+        if (deviceIdentifier.length > 1) {
+            that.asyncCallWait++;
+
+            that.addUpdateAccessory(deviceIdentifier, 'configureAccessory', accessory).then(function() {
+                that.asyncCallWait--;
+                done = true;
+            }).catch(function(error) {
+                if (error.errorCode === 2) {
+                    that.log.warn('Device Skipped - Name ' + accessory.name + ', ID ' + deviceIdentifier + ' - Received Code 404, mark for removal from cache');
+                    that.deviceLookup[accessory.UUID] = accessory;
+                } else {
+                    that.log(error);
+                    that.log.error('Going to exit here to not destroy your room assignments.');
+                    process.exit(1);
+                }
+                that.asyncCallWait--;
+                done = true;
+            });
+        } else {
+            this.log.warn("Invalid Device Indentifier stored in cache, remove device " + accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Name).value);
+            this.deviceLookup[accessory.UUID] = accessory;
+            done = true;
+        }
+    },
+    accessories: function(callback) {
+        var that = this;
+        callback([]);
+    },
+    isAttributeUsed: function(attribute, deviceid) {
+        if (!this.attributeLookup[attribute])
+            return false;
+        if (!this.attributeLookup[attribute][deviceid])
+            return false;
+        return true;
+    },
+    addAttributeUsage: function(attribute, deviceid, mycharacteristic) {
+        if (!this.attributeLookup[attribute]) {
+            this.attributeLookup[attribute] = {};
+        }
+        if (!this.attributeLookup[attribute][deviceid]) {
+            this.attributeLookup[attribute][deviceid] = [];
+        }
+        this.attributeLookup[attribute][deviceid].push(mycharacteristic);
+    },
+    removeDeviceAttributeUsage: function(deviceid) {
+        var that = this;
+        Object.entries(that.attributeLookup).forEach((entry) => {
+            const [key, value] = entry;
+            if (that.attributeLookup[key].hasOwnProperty(deviceid))
+                delete that.attributeLookup[key][deviceid];
+        });
+    },
+    getAttributeValue: function(attribute, deviceid, that) {
+        if (!(that.attributeLookup[attribute] && that.attributeLookup[attribute][deviceid])) {
+            return null;
+        }
+        var myUsage = that.attributeLookup[attribute][deviceid];
+        if (myUsage instanceof Array) {
+            for (var j = 0; j < myUsage.length; j++) {
+                var accessory = that.deviceLookup[uuidGen(deviceid)];
+                if (accessory) {
+                    return accessory.device.attributes[attribute];
+                }
+            }
+        }
+    },
+    processFieldUpdate: function(attributeSet, that) {
+        if (!(that.attributeLookup[attributeSet.attribute] && that.attributeLookup[attributeSet.attribute][attributeSet.device])) {
+            return;
+        }
+        var myUsage = that.attributeLookup[attributeSet.attribute][attributeSet.device];
+        if (myUsage instanceof Array) {
+            for (var j = 0; j < myUsage.length; j++) {
+                var accessory = that.deviceLookup[uuidGen(attributeSet.device)];
+                if (accessory) {
+                    accessory.device.attributes[attributeSet.attribute] = attributeSet.value;
+                    myUsage[j].getValue();
+                }
+            }
+        }
     },
     // reloadData: function(callback) {
     //     var that = this;
@@ -391,100 +480,11 @@ HE_ST_Platform.prototype = {
     //             setInterval(that.doIncrementalUpdate.bind(that), that.update_seconds * 1000);
     //         } else if (that.update_method === 'direct') {
     //             // The Hub sends updates to this module using http
-    //             he_st_api_SetupHTTPServer(that);
+    //             WebServerInit(that);
     //             he_st_api.startDirect(null, that.direct_ip, that.direct_port);
     //         }
     //     });
     // },
-    configureAccessory: function(accessory) {
-        var done = false;
-
-        if (this.disabled === true)
-            return;
-        var that = this;
-        var deviceIdentifier = accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.SerialNumber).value.split(':');
-        if (deviceIdentifier.length > 1) {
-            that.asyncCallWait++;
-
-            that.addUpdateAccessory(deviceIdentifier[1], deviceIdentifier[0], 'configureAccessory', accessory).then(function() {
-                that.asyncCallWait--;
-                done = true;
-            }).catch(function(error) {
-                if (error.errorCode === 2) {
-                    that.log.warn('Device Skipped - Name ' + accessory.name + ', ID ' + deviceIdentifier[1] + ' - Received Code 404, mark for removal from cache');
-                    that.deviceLookup[accessory.UUID] = accessory;
-                } else {
-                    that.log(error);
-                    that.log.error('Going to exit here to not destroy your room assignments.');
-                    process.exit(1);
-                }
-                that.asyncCallWait--;
-                done = true;
-            });
-        } else {
-            this.log.warn("Invalid Device Indentifier stored in cache, remove device" + accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Name).value);
-            this.deviceLookup[accessory.UUID] = accessory;
-            done = true;
-        }
-    },
-    accessories: function(callback) {
-        var that = this;
-        callback([]);
-    },
-    isAttributeUsed: function(attribute, deviceid) {
-        if (!this.attributeLookup[attribute])
-            return false;
-        if (!this.attributeLookup[attribute][deviceid])
-            return false;
-        return true;
-    },
-    addAttributeUsage: function(attribute, deviceid, mycharacteristic) {
-        if (!this.attributeLookup[attribute]) {
-            this.attributeLookup[attribute] = {};
-        }
-        if (!this.attributeLookup[attribute][deviceid]) {
-            this.attributeLookup[attribute][deviceid] = [];
-        }
-        this.attributeLookup[attribute][deviceid].push(mycharacteristic);
-    },
-    removeDeviceAttributeUsage: function(deviceid) {
-        var that = this;
-        Object.entries(that.attributeLookup).forEach((entry) => {
-            const [key, value] = entry;
-            if (that.attributeLookup[key].hasOwnProperty(deviceid))
-                delete that.attributeLookup[key][deviceid];
-        });
-    },
-    getAttributeValue: function(attribute, deviceid, that) {
-        if (!(that.attributeLookup[attribute] && that.attributeLookup[attribute][deviceid])) {
-            return null;
-        }
-        var myUsage = that.attributeLookup[attribute][deviceid];
-        if (myUsage instanceof Array) {
-            for (var j = 0; j < myUsage.length; j++) {
-                var accessory = that.deviceLookup[uuidGen(deviceid)];
-                if (accessory) {
-                    return accessory.device.attributes[attribute];
-                }
-            }
-        }
-    },
-    processFieldUpdate: function(attributeSet, that) {
-        if (!(that.attributeLookup[attributeSet.attribute] && that.attributeLookup[attributeSet.attribute][attributeSet.device])) {
-            return;
-        }
-        var myUsage = that.attributeLookup[attributeSet.attribute][attributeSet.device];
-        if (myUsage instanceof Array) {
-            for (var j = 0; j < myUsage.length; j++) {
-                var accessory = that.deviceLookup[uuidGen(attributeSet.device)];
-                if (accessory) {
-                    accessory.device.attributes[attributeSet.attribute] = attributeSet.value;
-                    myUsage[j].getValue();
-                }
-            }
-        }
-    },
-
     // doIncrementalUpdate: function() {
     //     var that = this;
     //     he_st_api.getUpdates(function(data) {
@@ -516,81 +516,84 @@ function getIPAddress() {
     return '0.0.0.0';
 }
 
-function he_st_api_SetupHTTPServer(myHe_st_api) {
+function WebServerInit(that) {
     // Get the IP address that we will send to the SmartApp. This can be overridden in the config file.
-    let ip = myHe_st_api.direct_ip || getIPAddress();
-    // Start the HTTP Server
-    const server = http.createServer(function(request, response) {
-        he_st_api_HandleHTTPResponse(request, response, myHe_st_api);
-    });
+    return new Promise(function(resolve) {
+        try {
+            let ip = that.direct_ip || getIPAddress();
+            // Start the HTTP Server
+            webApp.listen(that.direct_port, function() {
+                that.log(`Direct Connect is Listening On ${ip}:${that.direct_port}`);
+            });
+            webApp.use(bodyParser.urlencoded({ extended: false }));
+            webApp.use(bodyParser.json());
+            webApp.use(function(req, res, next) {
+                res.header("Access-Control-Allow-Origin", "*");
+                res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+                next();
+            });
 
-    server.listen(myHe_st_api.direct_port, err => {
-        if (err) {
-            myHe_st_api.log('something bad happened', err);
-            return '';
+            webApp.get('/', function(req, res) {
+                res.send('WebApp is running...');
+            });
+
+            webApp.get('/restart', function(req, res) {
+                console.log('restart...');
+                let delay = (10 * 1000);
+                that.log('Received request from ' + platformName + ' to restart homebridge service in (' + (delay / 1000) + ' seconds) | NOTICE: If you using PM2 or Systemd the Homebridge Service should start back up');
+                setTimeout(function() {
+                    process.exit(1);
+                }, parseInt(delay));
+                res.send('OK');
+            });
+
+            webApp.post('/updateprefs', function(req, res) {
+                that.log(platformName + ' Hub Sent Preference Updates');
+                let data = JSON.parse(req.body);
+                let sendUpd = false;
+                if (platformName === 'SmartThings') {
+                    if (data.local_commands && that.local_commands !== data.local_commands) {
+                        sendUpd = true;
+                        that.log(platformName + ' Updated Local Commands Preference | Before: ' + that.local_commands + ' | Now: ' + data.local_commands);
+                        that.local_commands = data.local_commands;
+                    }
+                    if (data.local_hub_ip && that.local_hub_ip !== data.local_hub_ip) {
+                        sendUpd = true;
+                        that.log(platformName + ' Updated Hub IP Preference | Before: ' + that.local_hub_ip + ' | Now: ' + data.local_hub_ip);
+                        that.local_hub_ip = data.local_hub_ip;
+                    }
+                }
+                if (sendUpd) {
+                    he_st_api.updateGlobals(that.local_hub_ip, that.local_commands);
+                }
+                res.send('OK');
+            });
+
+            webApp.get('/initial', function(req, res) {
+                that.log(platformName + ' Hub Communication Established');
+                res.send('OK');
+            });
+
+            webApp.post('/update', function(req, res) {
+                if (req.body.length < 3)
+                    return;
+                let data = JSON.parse(JSON.stringify(req.body));
+                // console.log('update: ', data);
+                if (Object.keys(data).length > 3) {
+                    let newChange = {
+                        device: data.change_device,
+                        attribute: data.change_attribute,
+                        value: data.change_value,
+                        date: data.change_date
+                    };
+                    that.log('Change Event:', '(' + data.change_name + ') [' + (data.change_attribute ? data.change_attribute.toUpperCase() : 'unknown') + '] is ' + data.change_value);
+                    that.processFieldUpdate(newChange, that);
+                }
+                res.send('OK');
+            });
+            resolve('OK');
+        } catch (ex) {
+            resolve('');
         }
-        myHe_st_api.log(`Direct Connect Is Listening On ${ip}:${myHe_st_api.direct_port}`);
     });
-    return 'good';
-}
-
-function he_st_api_HandleHTTPResponse(request, response, myHe_st_api) {
-    if (request.url === '/restart') {
-        let delay = (10 * 1000);
-        myHe_st_api.log('Received request from ' + platformName + ' to restart homebridge service in (' + (delay / 1000) + ' seconds) | NOTICE: If you using PM2 or Systemd the Homebridge Service should start back up');
-        setTimeout(function() {
-            process.exit(1);
-        }, parseInt(delay));
-    }
-    if (request.url === '/updateprefs') {
-        myHe_st_api.log(platformName + ' Hub Sent Preference Updates');
-        let body = [];
-        request.on('data', (chunk) => {
-            body.push(chunk);
-        }).on('end', () => {
-            body = Buffer.concat(body).toString();
-            let data = JSON.parse(body);
-            let sendUpd = false;
-            if (platformName === 'SmartThings') {
-                if (data.local_commands && myHe_st_api.local_commands !== data.local_commands) {
-                    sendUpd = true;
-                    myHe_st_api.log(platformName + ' Updated Local Commands Preference | Before: ' + myHe_st_api.local_commands + ' | Now: ' + data.local_commands);
-                    myHe_st_api.local_commands = data.local_commands;
-                }
-                if (data.local_hub_ip && myHe_st_api.local_hub_ip !== data.local_hub_ip) {
-                    sendUpd = true;
-                    myHe_st_api.log(platformName + ' Updated Hub IP Preference | Before: ' + myHe_st_api.local_hub_ip + ' | Now: ' + data.local_hub_ip);
-                    myHe_st_api.local_hub_ip = data.local_hub_ip;
-                }
-            }
-            if (sendUpd) {
-                he_st_api.updateGlobals(myHe_st_api.local_hub_ip, myHe_st_api.local_commands);
-            }
-        });
-    }
-    if (request.url === '/initial') {
-        myHe_st_api.log(platformName + ' Hub Communication Established');
-    }
-    if (request.url === '/update') {
-        let body = [];
-        request.on('data', (chunk) => {
-            body.push(chunk);
-        }).on('end', () => {
-            body = Buffer.concat(body).toString();
-            if (body.length < 3)
-                return;
-            let data = JSON.parse(body);
-            if (Object.keys(data).length > 3) {
-                var newChange = {
-                    device: data.change_device,
-                    attribute: data.change_attribute,
-                    value: data.change_value,
-                    date: data.change_date
-                };
-                myHe_st_api.log('Change Event:', '(' + data.change_name + ') [' + (data.change_attribute ? data.change_attribute.toUpperCase() : 'unknown') + '] is ' + data.change_value);
-                myHe_st_api.processFieldUpdate(newChange, myHe_st_api);
-            }
-        });
-    }
-    response.end('OK');
 }
